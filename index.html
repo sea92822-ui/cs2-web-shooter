@@ -310,6 +310,13 @@
         <div class="setting-label">Гильзы не исчезают<small>Остаются лежать на земле навсегда</small></div>
         <input id="shellPersistToggle" type="checkbox" class="toggle">
       </div>
+      <div class="setting-row">
+        <div class="setting-label">Сервер<small>Адрес или IP:порт, пусто = авто</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="netServer" type="text" placeholder="например 192.168.1.10:3000" style="width:190px;background:rgba(255,255,255,.08);border:1px solid var(--line-soft);color:#e6eaf2;border-radius:6px;padding:7px 10px;font:12px Consolas,monospace">
+          <button id="netConnect" class="gfx-reset">ПОДКЛЮЧИТЬСЯ</button>
+        </div>
+      </div>
       <div class="setting-row" style="border-bottom:none">
         <div class="setting-label">Графика<small>Тени, туман, разрешение, тонмаппинг</small></div>
         <button id="gfxOpen" class="gfx-reset">ОТКРЫТЬ</button>
@@ -2321,6 +2328,17 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closePopups));
 [invPopup, casePopup, setPopup, gfxPopup, buyPopup].forEach(p => p.addEventListener('click', e => { if (e.target === p) closePopups(); }));
 
+const netServer = document.getElementById('netServer');
+const netConnectBtn = document.getElementById('netConnect');
+netServer.value = localStorage.getItem('cs3d_server') || '';
+netConnectBtn.addEventListener('click', () => {
+  const v = netServer.value.trim();
+  localStorage.setItem('cs3d_server', v);
+  connectNet();
+  toast('Подключение: ' + (v || 'авто'));
+});
+netServer.addEventListener('keydown', e => { if (e.key === 'Enter') netConnectBtn.click(); });
+
 document.querySelectorAll('.ws-btn').forEach(b => b.addEventListener('click', () => switchWeapon(b.dataset.weapon)));
 function updateWeaponBar() {
   document.querySelectorAll('.ws-btn').forEach(b => b.classList.toggle('active', b.dataset.weapon === currentWeapon));
@@ -3587,9 +3605,19 @@ function connectNet() {
     netStatusText('СЕРВЕР: НЕДОСТУПЕН', '#e04040');
     return;
   }
-  const url = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3000'
-    : window.location.protocol + '//' + window.location.host;
+  const saved = (localStorage.getItem('cs3d_server') || '').trim();
+  const url = saved
+    ? (/^https?:\/\//i.test(saved) ? saved : 'http://' + saved)
+    : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000'
+        : window.location.protocol + '//' + window.location.host);
+  if (net.socket) {
+    net.socket.disconnect();
+    net.socket = null;
+    net.connected = false;
+    for (const id of [...net.other.keys()]) removeRemotePlayer(id);
+  }
+  netStatusText('СЕРВЕР: ' + url.replace(/^https?:\/\//, '') + ' …', '#ffd24a');
   net.socket = io(url, {
     reconnection: true,
     reconnectionAttempts: Infinity,
