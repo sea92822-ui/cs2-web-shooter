@@ -2782,7 +2782,6 @@ function explodeHE(g) {
     }
   }
   if (hitAny) showHitmarker();
-  const dist = camera.position.distanceTo(p);
   if (dist < 9) {
     fovKick = Math.max(fovKick, 1.4 * (1 - dist / 9));
     recoilPitch += 0.02;
