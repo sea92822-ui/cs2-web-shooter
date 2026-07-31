@@ -23,6 +23,16 @@
 
   #hitmarker { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; pointer-events: none; display: none; z-index: 16; }
   #netStatus { position: fixed; top: 10px; right: 12px; z-index: 20; font: 12px/1.4 'Consolas', monospace; color: #ffd24a; background: rgba(10, 14, 18, 0.75); border: 1px solid rgba(255, 210, 74, 0.35); border-radius: 6px; padding: 4px 10px; pointer-events: none; }
+  #inviteBox { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; background: rgba(12, 16, 24, .94); border: 1px solid rgba(255,255,255,.16); border-radius: 12px; padding: 22px 30px; text-align: center; color: #e6eaf2; display: flex; flex-direction: column; gap: 12px; font-family: "Segoe UI", sans-serif; }
+  #inviteBox.hidden { display: none; }
+  .invite-title { color: var(--acc); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  .invite-text { font-size: 14px; }
+  .invite-text b { color: #ff9d3f; }
+  .invite-btns { display: flex; gap: 10px; justify-content: center; }
+  .invite-btns button { border: 1px solid var(--line); background: rgba(255,255,255,.07); color: #e6eaf2; border-radius: 8px; padding: 8px 22px; font: 600 12px "Segoe UI", sans-serif; cursor: pointer; letter-spacing: 1px; }
+  .invite-btns button:hover { background: rgba(255,255,255,.14); }
+  #inviteAccept { background: #1d7a3d; border-color: #2d9a52; }
+  #inviteAccept:hover { background: #238f49; }
   #hitmarker::before { content: ''; position: absolute; left: 8px; top: 0; width: 2px; height: 18px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
   #hitmarker::after  { content: ''; position: absolute; left: 0; top: 8px; width: 18px; height: 2px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
 
@@ -162,6 +172,14 @@
 <div id="crosshair"></div>
 <div id="hitmarker"></div>
 <div id="netStatus">СЕРВЕР: ПОДКЛЮЧЕНИЕ…</div>
+<div id="inviteBox" class="hidden">
+  <div class="invite-title">ПРИГЛАШЕНИЕ</div>
+  <div class="invite-text">Игрок #<b id="inviteFrom"></b> приглашает вас в игру</div>
+  <div class="invite-btns">
+    <button id="inviteAccept">ПРИНЯТЬ</button>
+    <button id="inviteReject">ОТКЛОНИТЬ</button>
+  </div>
+</div>
 <div id="hint">
   <b>WASD</b> — движение &nbsp;·&nbsp; <b>Пробел</b> — прыжок &nbsp;·&nbsp; <b>1/2</b> — оружие &nbsp;·&nbsp; <b>F</b> — осмотр &nbsp;·&nbsp; <b>ЛКМ</b> — выстрел/удар &nbsp;·&nbsp; <b>R</b> — перезарядка &nbsp;·&nbsp; <b>SHIFT</b> — бег &nbsp;·&nbsp; <b>Esc</b> — меню
 </div>
@@ -315,6 +333,13 @@
         <div style="display:flex;align-items:center;gap:8px">
           <input id="netServer" type="text" placeholder="например 192.168.1.10:3000" style="width:190px;background:rgba(255,255,255,.08);border:1px solid var(--line-soft);color:#e6eaf2;border-radius:6px;padding:7px 10px;font:12px Consolas,monospace">
           <button id="netConnect" class="gfx-reset">ПОДКЛЮЧИТЬСЯ</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">Игра с другом<small>Введите ID друга (виден вверху справа)</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="friendId" type="text" placeholder="ID друга" style="width:90px;background:rgba(255,255,255,.08);border:1px solid var(--line-soft);color:#e6eaf2;border-radius:6px;padding:7px 10px;font:12px Consolas,monospace">
+          <button id="inviteBtn" class="gfx-reset">ПРИГЛАСИТЬ</button>
         </div>
       </div>
       <div class="setting-row" style="border-bottom:none">
@@ -2339,6 +2364,28 @@ netConnectBtn.addEventListener('click', () => {
 });
 netServer.addEventListener('keydown', e => { if (e.key === 'Enter') netConnectBtn.click(); });
 
+const inviteBox = document.getElementById('inviteBox');
+const inviteFromEl = document.getElementById('inviteFrom');
+const friendId = document.getElementById('friendId');
+let pendingInvite = null;
+document.getElementById('inviteAccept').addEventListener('click', () => {
+  if (net.socket && pendingInvite) net.socket.emit('invite_response', { accept: true, fromId: pendingInvite });
+  pendingInvite = null;
+  inviteBox.classList.add('hidden');
+});
+document.getElementById('inviteReject').addEventListener('click', () => {
+  if (net.socket && pendingInvite) net.socket.emit('invite_response', { accept: false, fromId: pendingInvite });
+  pendingInvite = null;
+  inviteBox.classList.add('hidden');
+});
+document.getElementById('inviteBtn').addEventListener('click', () => {
+  if (!net.connected || !net.socket) { toast('Сервер не подключен'); return; }
+  const v = friendId.value.trim();
+  if (!v) { toast('Введите ID друга'); return; }
+  net.socket.emit('invite', { targetId: v });
+});
+friendId.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inviteBtn').click(); });
+
 document.querySelectorAll('.ws-btn').forEach(b => b.addEventListener('click', () => switchWeapon(b.dataset.weapon)));
 function updateWeaponBar() {
   document.querySelectorAll('.ws-btn').forEach(b => b.classList.toggle('active', b.dataset.weapon === currentWeapon));
@@ -3528,7 +3575,11 @@ const net = {
   id: null,
   connected: false,
   sendT: 0,
-  other: new Map()
+  other: new Map(),
+  myCode: 0,
+  partnerId: null,
+  partnerCode: 0,
+  partnerTag: null
 };
 function netStatusText(txt, cls) {
   netStatus.textContent = txt;
@@ -3598,7 +3649,56 @@ function updateRemotePlayers(dt) {
       p.hitT -= dt;
       if (p.hitT <= 0) { for (const m of p.mats) m.emissive.set(0x000000); }
     }
+    if (net.partnerTag) {
+      const pp = net.partnerId ? net.other.get(net.partnerId) : null;
+      if (pp) {
+        net.partnerTag.visible = true;
+        net.partnerTag.position.set(pp.group.position.x, pp.group.position.y + 2.02, pp.group.position.z);
+      } else {
+        net.partnerTag.visible = false;
+      }
+    }
   }
+}
+function makePartnerTagTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 34px "Segoe UI", sans-serif';
+  const txt = 'ДРУГ #' + (net.partnerCode || '?');
+  const w = ctx.measureText(txt).width;
+  ctx.fillStyle = 'rgba(18, 46, 26, 0.88)';
+  ctx.strokeStyle = '#35d268';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect((256 - w) / 2 - 26, 8, w + 52, 48, 12);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#5dff97';
+  ctx.textAlign = 'center';
+  ctx.fillText(txt, 128, 43);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function updatePartnerTag() {
+  if (net.partnerTag) {
+    scene.remove(net.partnerTag);
+    net.partnerTag.material.map.dispose();
+    net.partnerTag.material.dispose();
+    net.partnerTag = null;
+  }
+  if (!net.partnerId) return;
+  net.partnerTag = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makePartnerTagTexture(),
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  }));
+  net.partnerTag.scale.set(1.05, 0.27, 1);
+  net.partnerTag.renderOrder = 999;
+  scene.add(net.partnerTag);
 }
 function connectNet() {
   if (!window.io) {
@@ -3617,6 +3717,11 @@ function connectNet() {
     net.connected = false;
     for (const id of [...net.other.keys()]) removeRemotePlayer(id);
   }
+  net.partnerId = null;
+  net.partnerCode = 0;
+  updatePartnerTag();
+  inviteBox.classList.add('hidden');
+  pendingInvite = null;
   netStatusText('СЕРВЕР: ' + url.replace(/^https?:\/\//, '') + ' …', '#ffd24a');
   net.socket = io(url, {
     reconnection: true,
@@ -3628,7 +3733,38 @@ function connectNet() {
   const s = net.socket;
   s.on('connect', () => {
     net.connected = true;
-    netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase(), '#4ade80');
+    netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase() + (net.myCode ? ' | ID: ' + net.myCode : ''), '#4ade80');
+  });
+  s.on('you_id', (d) => {
+    net.myCode = d.id;
+    netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase() + ' | ID: ' + net.myCode, '#4ade80');
+  });
+  s.on('invite', (d) => {
+    pendingInvite = d.fromId;
+    inviteFromEl.textContent = d.fromCode;
+    inviteBox.classList.remove('hidden');
+  });
+  s.on('invite_fail', (d) => {
+    toast(d.reason === 'not found' ? 'Игрок с таким ID не найден' : d.reason === 'self' ? 'Это ваш собственный ID' : 'Слишком часто, подождите 2 сек');
+  });
+  s.on('invite_declined', (d) => toast('Игрок #' + d.fromCode + ' отклонил приглашение'));
+  s.on('party_join', (d) => {
+    net.partnerId = d.partnerId;
+    net.partnerCode = d.partnerCode;
+    inviteBox.classList.add('hidden');
+    pendingInvite = null;
+    if (d.invited && d.partnerPos) {
+      camera.position.set(d.partnerPos.x, d.partnerPos.y, d.partnerPos.z);
+      vy = 0; grounded = true; groundY = 0;
+    }
+    updatePartnerTag();
+    toast(d.invited ? 'Вы вошли в игру к другу #' + d.partnerCode : 'Игрок #' + d.partnerCode + ' принял приглашение');
+  });
+  s.on('party_leave', (d) => {
+    toast('Игрок #' + d.partnerCode + ' вышел из игры');
+    net.partnerId = null;
+    net.partnerCode = 0;
+    updatePartnerTag();
   });
   s.on('disconnect', () => {
     net.connected = false;
@@ -3687,7 +3823,15 @@ function connectNet() {
     scene.add(fl);
     setTimeout(() => { scene.remove(fl); fl.material.dispose(); }, 60);
   });
-  s.on('player-left', (id) => removeRemotePlayer(id));
+  s.on('player-left', (id) => {
+    removeRemotePlayer(id);
+    if (id === net.partnerId) {
+      net.partnerId = null;
+      net.partnerCode = 0;
+      updatePartnerTag();
+      toast('Друг вышел из игры');
+    }
+  });
   s.on('bullet-impact', (d) => {
     const n = new THREE.Vector3(d.nx, d.ny, d.nz);
     if (n.lengthSq() < 0.01) return;

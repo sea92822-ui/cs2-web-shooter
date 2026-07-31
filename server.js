@@ -10,13 +10,16 @@ const server = http.createServer(app);
 const io = new Server(server, { pingInterval: 25000, pingTimeout: 20000 });
 
 const players = new Map();
+let codeSeq = 2;
+const inviteCooldown = new Map();
 
 io.on('connection', (socket) => {
   const id = socket.id;
-  const p = { x: 0, y: 1.7, z: 0, yaw: 0, pitch: 0, grounded: 1 };
+  const p = { x: 0, y: 1.7, z: 0, yaw: 0, pitch: 0, grounded: 1, code: codeSeq++ };
   players.set(id, p);
   socket.emit('init', { id, players: [...players.entries()].map(([k, v]) => ({ id: k, ...v })) });
   socket.broadcast.emit('player-join', { id, ...p });
+  socket.emit('you_id', { id: p.code });
 
   socket.on('state', (s) => {
     const pl = players.get(id);
@@ -77,9 +80,52 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('invite', (d) => {
+    const me = players.get(id);
+    if (!me) return;
+    const targetCode = parseInt(d.targetId, 10);
+    if (!Number.isFinite(targetCode)) { socket.emit('invite_fail', { reason: 'not found' }); return; }
+    if (targetCode === me.code) { socket.emit('invite_fail', { reason: 'self' }); return; }
+    if (Date.now() - (inviteCooldown.get(id) || 0) < 2000) { socket.emit('invite_fail', { reason: 'cooldown' }); return; }
+    let targetSock = null;
+    for (const [sid, pl] of players.entries()) {
+      if (pl.code === targetCode) { targetSock = io.sockets.sockets.get(sid); break; }
+    }
+    if (!targetSock) { socket.emit('invite_fail', { reason: 'not found' }); return; }
+    inviteCooldown.set(id, Date.now());
+    targetSock.emit('invite', { fromCode: me.code, fromId: id });
+  });
+
+  socket.on('invite_response', (d) => {
+    const me = players.get(id);
+    if (!me) return;
+    const inviterId = String(d.fromId);
+    const inviter = players.get(inviterId);
+    const inviterSock = io.sockets.sockets.get(inviterId);
+    if (!inviter || !inviterSock) return;
+    if (d.accept) {
+      me.party = inviterId;
+      inviter.party = id;
+      inviterSock.emit('party_join', { partnerCode: me.code, partnerId: id, invited: false });
+      socket.emit('party_join', {
+        partnerCode: inviter.code,
+        partnerId: inviterId,
+        partnerPos: { x: inviter.x, y: inviter.y, z: inviter.z },
+        invited: true
+      });
+    } else {
+      inviterSock.emit('invite_declined', { fromCode: me.code });
+    }
+  });
+
   socket.on('disconnect', () => {
     players.delete(id);
     io.emit('player-left', id);
+    if (p.party) {
+      const ps = io.sockets.sockets.get(p.party);
+      if (ps) ps.emit('party_leave', { partnerCode: p.code });
+      p.party = null;
+    }
   });
 });
 
