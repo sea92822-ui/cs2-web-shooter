@@ -1,7 +1,7 @@
 services:
   - type: web
     name: cs2-web-shooter
-    runtime: static
+    env: static
     staticPublishPath: .
     buildCommand: ""
     routes:
