@@ -336,7 +336,7 @@
         </div>
       </div>
       <div class="setting-row">
-        <div class="setting-label">Игра с другом<small>Введите ID друга (виден вверху справа)</small></div>
+        <div class="setting-label">Игра с другом<small>Ваш ID: <b id="myIdInSet" style="color:#ff9d3f">—</b> · введите ID друга и нажмите «Пригласить»</small></div>
         <div style="display:flex;align-items:center;gap:8px">
           <input id="friendId" type="text" placeholder="ID друга" style="width:90px;background:rgba(255,255,255,.08);border:1px solid var(--line-soft);color:#e6eaf2;border-radius:6px;padding:7px 10px;font:12px Consolas,monospace">
           <button id="inviteBtn" class="gfx-reset">ПРИГЛАСИТЬ</button>
@@ -2367,6 +2367,7 @@ netServer.addEventListener('keydown', e => { if (e.key === 'Enter') netConnectBt
 const inviteBox = document.getElementById('inviteBox');
 const inviteFromEl = document.getElementById('inviteFrom');
 const friendId = document.getElementById('friendId');
+const myIdInSet = document.getElementById('myIdInSet');
 let pendingInvite = null;
 document.getElementById('inviteAccept').addEventListener('click', () => {
   if (net.socket && pendingInvite) net.socket.emit('invite_response', { accept: true, fromId: pendingInvite });
@@ -2383,6 +2384,7 @@ document.getElementById('inviteBtn').addEventListener('click', () => {
   const v = friendId.value.trim();
   if (!v) { toast('Введите ID друга'); return; }
   net.socket.emit('invite', { targetId: v });
+  toast('Приглашение отправлено игроку #' + v);
 });
 friendId.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inviteBtn').click(); });
 
@@ -3757,11 +3759,13 @@ function connectNet() {
   s.on('you_id', (d) => {
     net.myCode = d.id;
     netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase() + ' | ID: ' + net.myCode, '#4ade80');
+    if (myIdInSet) myIdInSet.textContent = '#' + net.myCode;
   });
   s.on('invite', (d) => {
     pendingInvite = d.fromId;
     inviteFromEl.textContent = d.fromCode;
     inviteBox.classList.remove('hidden');
+    toast('Вас приглашает игрок #' + d.fromCode + ' — примите приглашение!');
   });
   s.on('invite_fail', (d) => {
     toast(d.reason === 'not found' ? 'Игрок с таким ID не найден' : d.reason === 'self' ? 'Это ваш собственный ID' : 'Слишком часто, подождите 2 сек');
