@@ -33,6 +33,24 @@
   .invite-btns button:hover { background: rgba(255,255,255,.14); }
   #inviteAccept { background: #1d7a3d; border-color: #2d9a52; }
   #inviteAccept:hover { background: #238f49; }
+  .menu-friend { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; max-width: 302px; }
+  .friend-title { font: 700 11px "Segoe UI", sans-serif; letter-spacing: 2px; color: var(--acc); }
+  .friend-line { font: 12px "Segoe UI", sans-serif; color: var(--muted); }
+  .friend-line b { color: #ff9d3f; }
+  .friend-row { display: flex; gap: 8px; }
+  .friend-row input { flex: 1; min-width: 0; background: rgba(255,255,255,.06); border: 1px solid var(--line-soft); color: #e6eaf2; border-radius: 6px; padding: 8px 10px; font: 12px Consolas, monospace; }
+  .friend-row .gfx-reset { padding: 8px 12px; font-size: 10px; }
+  #tradeBox { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 31; background: rgba(12, 16, 24, .97); border: 1px solid rgba(255,255,255,.16); border-radius: 12px; padding: 22px 30px; color: #e6eaf2; display: flex; flex-direction: column; gap: 12px; font-family: "Segoe UI", sans-serif; width: min(440px, 92vw); max-height: 80vh; }
+  #tradeBox.hidden { display: none; }
+  .trade-note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .trade-items { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+  .trade-item { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 7px 10px; background: rgba(255,255,255,.04); border: 1px solid var(--line-soft); border-radius: 8px; cursor: pointer; }
+  .trade-item:hover { border-color: var(--line); }
+  .trade-item input { accent-color: var(--acc); }
+  .trade-item em { margin-left: auto; font-style: normal; font-size: 10px; letter-spacing: 1px; }
+  .trade-empty { font-size: 13px; color: var(--muted); padding: 10px 0; }
+  #tradeSend { background: #1d7a3d; border-color: #2d9a52; }
+  #tradeSend:hover { background: #238f49; }
   #hitmarker::before { content: ''; position: absolute; left: 8px; top: 0; width: 2px; height: 18px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
   #hitmarker::after  { content: ''; position: absolute; left: 0; top: 8px; width: 18px; height: 2px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
 
@@ -180,6 +198,15 @@
     <button id="inviteReject">ОТКЛОНИТЬ</button>
   </div>
 </div>
+<div id="tradeBox" class="hidden">
+  <div class="invite-title" id="tradeTitle">ОБМЕН СКИНАМИ</div>
+  <div class="trade-note" id="tradeNote"></div>
+  <div id="tradeItems" class="trade-items"></div>
+  <div class="invite-btns">
+    <button id="tradeSend">ПРЕДЛОЖИТЬ</button>
+    <button id="tradeCancel">ОТМЕНА</button>
+  </div>
+</div>
 <div id="hint">
   <b>WASD</b> — движение &nbsp;·&nbsp; <b>Пробел</b> — прыжок &nbsp;·&nbsp; <b>1/2</b> — оружие &nbsp;·&nbsp; <b>F</b> — осмотр &nbsp;·&nbsp; <b>ЛКМ</b> — выстрел/удар &nbsp;·&nbsp; <b>R</b> — перезарядка &nbsp;·&nbsp; <b>SHIFT</b> — бег &nbsp;·&nbsp; <b>Esc</b> — меню
 </div>
@@ -243,6 +270,15 @@
       <button class="nav-btn" data-action="settings"><span class="nav-idx">05</span>Настройки</button>
       <button class="nav-btn" data-action="exit"><span class="nav-idx">06</span>Выход</button>
     </nav>
+    <div class="menu-friend">
+      <div class="friend-title">ИГРА С ДРУГОМ</div>
+      <div class="friend-line">Мой ID: <b id="menuMyId">—</b> (подключение к серверу сразу при загрузке)</div>
+      <div class="friend-row">
+        <input id="friendIdMenu" type="text" placeholder="ID друга">
+        <button id="friendInviteMenu" class="gfx-reset">ПРИГЛАСИТЬ</button>
+        <button id="friendTradeMenu" class="gfx-reset">ОБМЕН</button>
+      </div>
+    </div>
     <div class="menu-footer">FPS PROTOCOL · v0.2.0 · three.js r160</div>
   </div>
   <div class="menu-right">
@@ -2388,6 +2424,100 @@ document.getElementById('inviteBtn').addEventListener('click', () => {
 });
 friendId.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inviteBtn').click(); });
 
+const friendIdMenu = document.getElementById('friendIdMenu');
+const menuMyId = document.getElementById('menuMyId');
+const tradeBox = document.getElementById('tradeBox');
+const tradeTitle = document.getElementById('tradeTitle');
+const tradeNote = document.getElementById('tradeNote');
+const tradeItemsEl = document.getElementById('tradeItems');
+const tradeSendBtn = document.getElementById('tradeSend');
+const tradeCancelBtn = document.getElementById('tradeCancel');
+let pendingTrade = null;
+let tradeMode = 'send';
+friendIdMenu.addEventListener('input', () => { friendId.value = friendIdMenu.value; });
+friendId.addEventListener('input', () => { friendIdMenu.value = friendId.value; });
+document.getElementById('friendInviteMenu').addEventListener('click', () => document.getElementById('inviteBtn').click());
+document.getElementById('friendTradeMenu').addEventListener('click', () => {
+  if (!friendIdMenu.value.trim()) { toast('Введите ID друга'); return; }
+  openTradeBox('send');
+});
+function tradeItemName(id) {
+  const it = ITEMS.find(i => i.id === id);
+  return it ? it.name : id;
+}
+function openTradeBox(mode, data) {
+  tradeMode = mode;
+  pendingTrade = data || null;
+  if (mode === 'offer' && data) {
+    tradeTitle.textContent = 'ОБМЕН С ИГРОКОМ #' + data.fromCode;
+    tradeNote.textContent = 'Он отдаёт: ' + data.items.map(tradeItemName).join(', ');
+    tradeSendBtn.textContent = 'ПРИНЯТЬ ОБМЕН';
+  } else {
+    tradeTitle.textContent = 'ОБМЕН СКИНАМИ';
+    tradeNote.textContent = 'Выберите скины, которые отдаёте (макс. 6):';
+    tradeSendBtn.textContent = 'ПРЕДЛОЖИТЬ';
+  }
+  tradeItemsEl.innerHTML = '';
+  const ownedItems = ITEMS.filter(i => OWNED[i.id]);
+  if (!ownedItems.length) {
+    tradeItemsEl.innerHTML = '<div class="trade-empty">У вас нет скинов для обмена — откройте кейсы</div>';
+  }
+  ownedItems.forEach(it => {
+    const l = document.createElement('label');
+    l.className = 'trade-item';
+    l.innerHTML = '<input type="checkbox" value="' + it.id + '"><span style="width:14px;height:14px;border-radius:3px;display:inline-block;background:' + it.swatch + '"></span>' + it.name + ' <em class="rar-' + it.rarity + '">' + it.label + '</em>';
+    const cb = l.querySelector('input');
+    cb.addEventListener('change', () => {
+      if (cb.checked && tradeItemsEl.querySelectorAll('input:checked').length > 6) {
+        cb.checked = false;
+        toast('Максимум 6 скинов за обмен');
+      }
+    });
+    tradeItemsEl.appendChild(l);
+  });
+  tradeBox.classList.remove('hidden');
+}
+function closeTradeBox() {
+  tradeBox.classList.add('hidden');
+  pendingTrade = null;
+}
+tradeSendBtn.addEventListener('click', () => {
+  const sel = [...tradeItemsEl.querySelectorAll('input:checked')].map(i => i.value);
+  if (tradeMode === 'send') {
+    const targetId = (friendId.value || friendIdMenu.value).trim();
+    if (!targetId) { toast('Введите ID друга'); return; }
+    if (!net.connected || !net.socket) { toast('Сервер не подключен'); return; }
+    if (!sel.length) { toast('Выберите скины для обмена'); return; }
+    net.socket.emit('trade_offer', { targetId, items: sel });
+    toast('Предложение обмена отправлено игроку #' + targetId);
+    closeTradeBox();
+  } else if (pendingTrade) {
+    if (!net.socket) { toast('Сервер не подключен'); return; }
+    net.socket.emit('trade_response', { accept: true, fromId: pendingTrade.fromId, items: sel, theirItems: pendingTrade.items });
+    closeTradeBox();
+  }
+});
+tradeCancelBtn.addEventListener('click', () => {
+  if (tradeMode === 'offer' && pendingTrade && net.socket) {
+    net.socket.emit('trade_response', { accept: false, fromId: pendingTrade.fromId });
+  }
+  closeTradeBox();
+});
+function applyTrade(gave, got) {
+  for (const i of gave) delete OWNED[i];
+  for (const i of got) {
+    if (ITEMS.some(t => t.id === i)) OWNED[i] = true;
+  }
+  saveOwned();
+  for (const t of ['knife', 'pistol', 'ak']) {
+    if (!OWNED[equipped[t]]) {
+      const d = ITEMS.find(i => i.type === t && OWNED[i.id]);
+      if (d) equipItem(d.id, true);
+    }
+  }
+  renderInventory();
+}
+
 document.querySelectorAll('.ws-btn').forEach(b => b.addEventListener('click', () => switchWeapon(b.dataset.weapon)));
 function updateWeaponBar() {
   document.querySelectorAll('.ws-btn').forEach(b => b.classList.toggle('active', b.dataset.weapon === currentWeapon));
@@ -2442,7 +2572,12 @@ const ITEMS = [
   { id: 'ak_asiimov', type: 'ak', name: 'Азимов', label: 'Засекреченный', rarity: 'purple', metal: 0xdfe3e8, dark: 0xb9bec6, wood: 0xc9ced4, plastic: 0x23252b, swatch: 'linear-gradient(135deg, #dde3ea, #ff7b00)' },
   { id: 'ak_fire', type: 'ak', name: 'Огненный дракон', label: 'Тайное', rarity: 'red', metal: 0x2c0e12, dark: 0x1e0a0d, wood: 0x9a3b12, plastic: 0x140c0a, swatch: 'linear-gradient(135deg, #2a0a06, #e2601a)' }
 ];
-const OWNED = { gradient: true, night: true, ak_wasteland: true };
+const OWNED = {};
+Object.assign(OWNED, { gradient: true, night: true, ak_wasteland: true });
+try { Object.assign(OWNED, JSON.parse(localStorage.getItem('cs3d_own') || '{}')); } catch (e) {}
+function saveOwned() {
+  try { localStorage.setItem('cs3d_own', JSON.stringify(OWNED)); } catch (e) {}
+}
 const equipped = { knife: 'gradient', pistol: 'night', ak: 'ak_wasteland' };
 let invTab = 'knife';
 const invGrid = document.getElementById('invGrid');
@@ -2626,6 +2761,7 @@ function claimCase() {
   if (OWNED[it.id]) { toast('Повторный скин «' + it.name + '»: +500 $'); money = Math.min(16000, money + 500); updateMoney(); }
   else toast('Получен скин «' + it.name + '» — теперь в инвентаре');
   OWNED[it.id] = true;
+  saveOwned();
   caseResult = null;
   caseOpenBtn.disabled = false;
   caseOpenBtn.classList.remove('disabled');
@@ -3760,6 +3896,7 @@ function connectNet() {
     net.myCode = d.id;
     netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase() + ' | ID: ' + net.myCode, '#4ade80');
     if (myIdInSet) myIdInSet.textContent = '#' + net.myCode;
+    if (menuMyId) menuMyId.textContent = '#' + net.myCode;
   });
   s.on('invite', (d) => {
     pendingInvite = d.fromId;
@@ -3788,6 +3925,18 @@ function connectNet() {
     net.partnerId = null;
     net.partnerCode = 0;
     updatePartnerTag();
+  });
+  s.on('trade_offer', (d) => {
+    openTradeBox('offer', d);
+    toast('Игрок #' + d.fromCode + ' предлагает обмен скинами!');
+  });
+  s.on('trade_fail', (d) => {
+    toast(d.reason === 'not found' ? 'Игрок с таким ID не найден' : d.reason === 'cooldown' ? 'Слишком часто, подождите 2 сек' : 'Выберите скины для обмена');
+  });
+  s.on('trade_declined', (d) => toast('Игрок #' + d.fromCode + ' отклонил обмен'));
+  s.on('trade_done', (d) => {
+    applyTrade(d.yourItems, d.theirItems);
+    toast('Обмен с игроком #' + d.partnerCode + ' завершён! Скины в инвентаре.');
   });
   s.on('disconnect', () => {
     net.connected = false;

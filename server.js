@@ -118,6 +118,40 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('trade_offer', (d) => {
+    const me = players.get(id);
+    if (!me) return;
+    const targetCode = parseInt(d.targetId, 10);
+    if (!Number.isFinite(targetCode) || targetCode === me.code) { socket.emit('trade_fail', { reason: 'not found' }); return; }
+    let targetSock = null;
+    for (const [sid, pl] of players.entries()) {
+      if (pl.code === targetCode) { targetSock = io.sockets.sockets.get(sid); break; }
+    }
+    if (!targetSock) { socket.emit('trade_fail', { reason: 'not found' }); return; }
+    if (Date.now() - (inviteCooldown.get(id) || 0) < 1500) { socket.emit('trade_fail', { reason: 'cooldown' }); return; }
+    const items = Array.isArray(d.items) ? d.items.filter(i => typeof i === 'string').slice(0, 8) : [];
+    if (!items.length) { socket.emit('trade_fail', { reason: 'no items' }); return; }
+    inviteCooldown.set(id, Date.now());
+    targetSock.emit('trade_offer', { fromCode: me.code, fromId: id, items });
+  });
+
+  socket.on('trade_response', (d) => {
+    const me = players.get(id);
+    if (!me) return;
+    const traderId = String(d.fromId);
+    const trader = players.get(traderId);
+    const traderSock = io.sockets.sockets.get(traderId);
+    if (!trader || !traderSock) return;
+    if (d.accept) {
+      const myItems = Array.isArray(d.items) ? d.items.filter(i => typeof i === 'string').slice(0, 8) : [];
+      const theirItems = Array.isArray(d.theirItems) ? d.theirItems.filter(i => typeof i === 'string').slice(0, 8) : [];
+      traderSock.emit('trade_done', { partnerCode: me.code, yourItems: myItems, theirItems });
+      socket.emit('trade_done', { partnerCode: trader.code, yourItems: theirItems, theirItems: myItems });
+    } else {
+      traderSock.emit('trade_declined', { fromCode: me.code });
+    }
+  });
+
   socket.on('disconnect', () => {
     players.delete(id);
     io.emit('player-left', id);
