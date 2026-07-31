@@ -1,3 +1,5 @@
 .git
 .gitignore
 *.rar
+node_modules
+npm-debug.log

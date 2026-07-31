@@ -22,6 +22,7 @@
   #hint b { color: #ff9d3f; font-weight: 600; }
 
   #hitmarker { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; pointer-events: none; display: none; z-index: 16; }
+  #netStatus { position: fixed; top: 10px; right: 12px; z-index: 20; font: 12px/1.4 'Consolas', monospace; color: #ffd24a; background: rgba(10, 14, 18, 0.75); border: 1px solid rgba(255, 210, 74, 0.35); border-radius: 6px; padding: 4px 10px; pointer-events: none; }
   #hitmarker::before { content: ''; position: absolute; left: 8px; top: 0; width: 2px; height: 18px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
   #hitmarker::after  { content: ''; position: absolute; left: 0; top: 8px; width: 18px; height: 2px; background: rgba(255,255,255,.95); transform: rotate(45deg); }
 
@@ -160,6 +161,7 @@
 <div id="app"></div>
 <div id="crosshair"></div>
 <div id="hitmarker"></div>
+<div id="netStatus">СЕРВЕР: ПОДКЛЮЧЕНИЕ…</div>
 <div id="hint">
   <b>WASD</b> — движение &nbsp;·&nbsp; <b>Пробел</b> — прыжок &nbsp;·&nbsp; <b>1/2</b> — оружие &nbsp;·&nbsp; <b>F</b> — осмотр &nbsp;·&nbsp; <b>ЛКМ</b> — выстрел/удар &nbsp;·&nbsp; <b>R</b> — перезарядка &nbsp;·&nbsp; <b>SHIFT</b> — бег &nbsp;·&nbsp; <b>Esc</b> — меню
 </div>
@@ -465,6 +467,7 @@
 }
 </script>
 
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
@@ -882,95 +885,6 @@ for (let i = 0; i < 9; i++) {
 }
 const RAY_LIST = [...RAY_TARGETS, ...crateMeshes, ...wallMeshes, floorPlane];
 const raycaster = new THREE.Raycaster();
-
-const botMats = {
-  shirt: new THREE.MeshStandardMaterial({ color: 0x3a6ea5, roughness: 0.85 }),
-  pants: new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.9 }),
-  skin: new THREE.MeshStandardMaterial({ color: 0xcaa284, roughness: 0.8 }),
-  gear: new THREE.MeshStandardMaterial({ color: 0x4a4e57, roughness: 0.6 })
-};
-const bots = [];
-
-function makeBot(x, z) {
-  const g = new THREE.Group();
-  const parts = [];
-  const mk = (w, h, d, mat, y, px = 0) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat.clone());
-    m.position.set(px, y, 0);
-    m.castShadow = true;
-    m.userData = { target: true, hitT: 0, pulse: 0, bot: true, origColor: mat.color.getHex(), origEmissive: mat.emissive ? mat.emissive.getHex() : 0 };
-    g.add(m);
-    parts.push(m);
-    return m;
-  };
-  const legL = mk(0.13, 0.8, 0.16, botMats.pants, 0.42, -0.11);
-  const legR = mk(0.13, 0.8, 0.16, botMats.pants, 0.42, 0.11);
-  const hip = mk(0.36, 0.16, 0.22, botMats.pants, 0.86);
-  const torso = mk(0.44, 0.52, 0.26, botMats.shirt, 1.2);
-  const armL = mk(0.11, 0.5, 0.13, botMats.shirt, 1.34, -0.29);
-  const armR = mk(0.11, 0.5, 0.13, botMats.shirt, 1.34, 0.29);
-  const head = mk(0.24, 0.26, 0.24, botMats.skin, 1.63);
-  mk(0.28, 0.09, 0.28, botMats.gear, 1.71);
-  const pack = mk(0.24, 0.34, 0.13, botMats.gear, 1.24);
-  pack.position.z = 0.2;
-  g.position.set(x, 0, z);
-  scene.add(g);
-  const bot = {
-    group: g,
-    parts,
-    head, torso, armL, armR,
-    lookT: 1 + Math.random() * 3,
-    lookCur: 0,
-    lookTo: 0,
-    phase: Math.random() * Math.PI * 2
-  };
-  bots.push(bot);
-  for (const m of parts) RAY_LIST.push(m);
-}
-
-function spawnBots() {
-  const cand = [];
-  for (let r = 0; r < MH; r++) for (let c = 0; c < MW; c++) {
-    const v = MAP[r][c];
-    if (v === 0 || v === 3 || v === 4 || v === 5 || v === 6) cand.push([r, c]);
-  }
-  for (let i = cand.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cand[i], cand[j]] = [cand[j], cand[i]];
-  }
-  let placed = 0;
-  for (const [r, c] of cand) {
-    if (placed >= 8) break;
-    const x = (c - MW / 2 + 0.5) * CELL;
-    const z = (r - MH / 2 + 0.5) * CELL;
-    if (Math.hypot(x - ctSpawn.x, z - ctSpawn.z) < 9) continue;
-    if (boxes.some(b => Math.abs(x - b.x) < b.w / 2 + 0.45 && Math.abs(z - b.z) < b.d / 2 + 0.45)) continue;
-    if (bots.some(b => Math.hypot(x - b.group.position.x, z - b.group.position.z) < 3)) continue;
-    makeBot(x, z);
-    placed++;
-  }
-}
-spawnBots();
-
-function updateBots(dt) {
-  const t = uTime;
-  for (const b of bots) {
-    const ph = b.phase;
-    b.group.position.y = Math.sin(t * 1.7 + ph) * 0.012;
-    b.head.position.y = 1.63 + Math.sin(t * 1.7 + ph) * 0.01;
-    b.head.rotation.x = Math.sin(t * 1.7 + ph + 1.2) * 0.05 + 0.02;
-    b.torso.rotation.z = Math.sin(t * 0.9 + ph) * 0.015;
-    b.armL.rotation.z = 0.04 + Math.sin(t * 1.7 + ph) * 0.02;
-    b.armR.rotation.z = -0.04 - Math.sin(t * 1.7 + ph) * 0.02;
-    b.lookT -= dt;
-    if (b.lookT <= 0) {
-      b.lookT = 2 + Math.random() * 4;
-      b.lookTo = (Math.random() - 0.5) * 0.8;
-    }
-    b.lookCur += (b.lookTo - b.lookCur) * Math.min(1, dt * 1.5);
-    b.head.rotation.y = b.lookCur;
-  }
-}
 
 const knifeUniforms = {
   uTime: { value: 0 },
@@ -2146,6 +2060,10 @@ function shoot() {
   const point = hits.length ? hits[0].point : from.clone().addScaledVector(dir, 90);
   punchSmokeLine(from, point);
   spawnTracer(from, point);
+  if (net.connected && net.socket) {
+    const dirv = camera.getWorldDirection(new THREE.Vector3());
+    net.socket.emit('shoot', { x: from.x, y: from.y, z: from.z, dx: dirv.x, dy: dirv.y, dz: dirv.z });
+  }
   if (hits.length) {
     const h = hits[0];
     if (h.face) {
@@ -2153,14 +2071,13 @@ function shoot() {
       addBulletDecal(h.object, h.point, n);
       spawnDebris(h.point, n);
     }
-    if (h.object.userData.target) {
+      if (h.object.userData.target) {
       const t = h.object;
       t.material.color.set(0x3dff6e);
       t.material.emissive.set(0x0a4a1c);
       t.userData.hitT = 1.6;
       t.userData.pulse = 1;
       showHitmarker();
-      if (h.object.userData.bot) addBloodSplatter(h.point, dir);
     }
   }
   if (ammo[currentWeapon] === 0) startReload();
@@ -3420,11 +3337,159 @@ function frame() {
     }
   }
 
-  updateBots(dt);
-
   drawMinimap();
+  updateRemotePlayers(dt);
+  if (net.connected && net.socket) {
+    net.sendT -= dt;
+    if (net.sendT <= 0) {
+      net.sendT = 0.05;
+      const e = camera.position;
+      net.socket.emit('state', { x: e.x, y: e.y, z: e.z, yaw: yaw, pitch: pitch });
+    }
+  }
   renderer.render(scene, camera);
 }
+
+// ===== МУЛЬТИПЛЕЕР (Socket.io) =====
+const netStatus = document.getElementById('netStatus');
+const net = {
+  socket: null,
+  id: null,
+  connected: false,
+  sendT: 0,
+  other: new Map()
+};
+function netStatusText(txt, cls) {
+  netStatus.textContent = txt;
+  netStatus.style.color = cls;
+}
+function makeRemotePlayer(id) {
+  const g = new THREE.Group();
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const shirt = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(h % 360 / 360, 0.55, 0.5), roughness: 0.85 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xcaa284, roughness: 0.8 });
+  const mk = (w, hh, d, mat, y, px = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
+    m.position.set(px, y, 0);
+    m.castShadow = true;
+    g.add(m);
+    return m;
+  };
+  mk(0.13, 0.8, 0.16, dark, 0.42, -0.11);
+  mk(0.13, 0.8, 0.16, dark, 0.42, 0.11);
+  mk(0.36, 0.16, 0.22, dark, 0.86);
+  mk(0.44, 0.52, 0.26, shirt, 1.2);
+  mk(0.11, 0.5, 0.13, shirt, 1.34, -0.29);
+  mk(0.11, 0.5, 0.13, shirt, 1.34, 0.29);
+  const head = mk(0.24, 0.26, 0.24, skin, 1.63);
+  g.position.set(0, 0, 0);
+  scene.add(g);
+  return { group: g, head, cur: new THREE.Vector3(0, 0, 0), tgt: new THREE.Vector3(0, 0, 0), yaw: 0, yawT: 0, pitch: 0, pitchT: 0 };
+}
+function removeRemotePlayer(id) {
+  const p = net.other.get(id);
+  if (!p) return;
+  scene.remove(p.group);
+  p.group.traverse(o => { if (o.material) o.material.dispose(); });
+  net.other.delete(id);
+}
+function lerpAngle(a, b, k) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * k;
+}
+function updateRemotePlayers(dt) {
+  const k = 1 - Math.pow(0.0001, dt);
+  const rk = 1 - Math.pow(0.001, dt);
+  for (const p of net.other.values()) {
+    p.cur.lerp(p.tgt, k);
+    p.group.position.copy(p.cur);
+    p.yaw = lerpAngle(p.yaw, p.yawT, rk);
+    p.pitch = lerpAngle(p.pitch, p.pitchT, rk);
+    p.group.rotation.y = p.yaw;
+    p.head.rotation.x = p.pitch;
+  }
+}
+function connectNet() {
+  if (!window.io) {
+    netStatusText('СЕРВЕР: НЕДОСТУПЕН', '#e04040');
+    return;
+  }
+  const url = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000'
+    : window.location.protocol + '//' + window.location.host;
+  net.socket = io(url, {
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 8000
+  });
+  const s = net.socket;
+  s.on('connect', () => {
+    net.connected = true;
+    netStatusText('СЕРВЕР: ' + s.id.slice(0, 4).toUpperCase(), '#4ade80');
+  });
+  s.on('disconnect', () => {
+    net.connected = false;
+    netStatusText('СЕРВЕР: ОТКЛЮЧЕНО, ПЕРЕПОДКЛЮЧЕНИЕ…', '#e04040');
+  });
+  s.on('connect_error', () => {
+    netStatusText('СЕРВЕР: НЕТ СВЯЗИ (' + s.io.attempts + ')', '#e04040');
+  });
+  s.on('init', (d) => {
+    net.id = d.id;
+    for (const pl of d.players) {
+      if (pl.id !== d.id && !net.other.has(pl.id)) {
+        const p = makeRemotePlayer(pl.id);
+        p.cur.set(pl.x, pl.y, pl.z);
+        p.tgt.set(pl.x, pl.y, pl.z);
+        p.yaw = p.yawT = pl.yaw;
+        p.pitch = p.pitchT = pl.pitch;
+        net.other.set(pl.id, p);
+      }
+    }
+  });
+  s.on('player-join', (pl) => {
+    if (pl.id === net.id || net.other.has(pl.id)) return;
+    const p = makeRemotePlayer(pl.id);
+    p.cur.set(pl.x, pl.y, pl.z);
+    p.tgt.set(pl.x, pl.y, pl.z);
+    p.yaw = p.yawT = pl.yaw;
+    p.pitch = p.pitchT = pl.pitch;
+    net.other.set(pl.id, p);
+  });
+  s.on('player-move', (d) => {
+    const p = net.other.get(d.id);
+    if (!p) return;
+    p.tgt.set(d.x, d.y, d.z);
+    p.yawT = d.yaw;
+    p.pitchT = d.pitch;
+  });
+  s.on('player-shoot', (d) => {
+    const p = net.other.get(d.id);
+    if (!p) return;
+    const from = new THREE.Vector3(d.x, d.y, d.z);
+    const dir = new THREE.Vector3(d.dx, d.dy, d.dz).normalize();
+    spawnTracer(from, from.clone().addScaledVector(dir, 40));
+    const fl = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeFlashTexture(),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.9
+    }));
+    fl.position.copy(from).addScaledVector(dir, 0.4);
+    fl.scale.set(0.35, 0.35, 1);
+    scene.add(fl);
+    setTimeout(() => { scene.remove(fl); fl.material.dispose(); }, 60);
+  });
+  s.on('player-left', (id) => removeRemotePlayer(id));
+}
+connectNet();
 
 renderer.setAnimationLoop(frame);
 </script>

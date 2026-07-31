@@ -1,10 +1,7 @@
 services:
   - type: web
     name: cs2-web-shooter
-    env: static
-    staticPublishPath: .
-    buildCommand: ""
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
