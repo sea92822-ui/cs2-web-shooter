@@ -142,7 +142,7 @@
   .buy-card-row .buy-name { flex: 1; text-align: left; margin-left: 10px; }
   #buyHUD { position: fixed; left: 34px; bottom: 30px; display: none; font: 600 12px "Segoe UI", sans-serif; letter-spacing: 1px; color: #9aa4b2; z-index: 15; text-shadow: 0 1px 3px #000; }
   #buyHUD b { color: #cfd6e0; }
-  #flashOverlay { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 50; }
+  #flashOverlay { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 50; transition: opacity 50ms linear; }
 
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
   .setting-label { font-size: 13px; letter-spacing: 2px; color: #cfd4dd; text-transform: uppercase; }
@@ -2650,7 +2650,7 @@ const BUY_ITEMS = {
   he:     { name: 'Осколочная граната', price: 300 },
   flash:  { name: 'Светошумовая граната', price: 200 }
 };
-let money = 16000, armor = 0, smokes = 1, hes = 1, flashes = 1, flashT = 0;
+let money = 16000, armor = 0, smokes = 1, hes = 1, flashes = 1, flashT = 0, flashMax = 0;
 const buyMoney = document.getElementById('buyMoney');
 const buyHUD = document.getElementById('buyHUD');
 const flashOverlay = document.getElementById('flashOverlay');
@@ -2903,7 +2903,25 @@ function explodeHE(g) {
     recoilPitch += 0.02;
   }
   playExplosion(dist);
-  flashT = Math.max(flashT, 0.18);
+  setFlash(0.18);
+}
+
+function setFlash(dur) {
+  flashMax = Math.max(flashMax, dur);
+  flashT = Math.max(flashT, dur);
+}
+
+function applyFlashblind(pos) {
+  const eye = camera.position;
+  const dir = new THREE.Vector3().subVectors(pos, eye);
+  const dist = dir.length();
+  let k = clamp(1 - (dist - 5) / 13, 0, 1);
+  if (k <= 0) return 0;
+  dir.normalize();
+  const fwd = camera.getWorldDirection(new THREE.Vector3());
+  const fovK = clamp((fwd.dot(dir) + 0.4) / 1.4, 0, 1);
+  const losK = isVisibleFromCamera(pos) ? 1 : 0.15;
+  return k * (0.15 + 0.85 * fovK) * losK;
 }
 
 function explodeGrenade(g) {
@@ -2947,7 +2965,8 @@ function explodeGrenade(g) {
   } else if (g.type === 'he') {
     explodeHE(g);
   } else {
-    flashT = 4;
+    const blind = applyFlashblind(g.mesh.position);
+    if (blind > 0.05) setFlash(4 * blind);
     const dist = g.mesh.position.distanceTo(camera.position);
     playFlashbangSound(dist);
     const ac = initAudio();
@@ -3141,11 +3160,11 @@ function updateGrenades(dt) {
   }
   if (flashT > 0) {
     flashT -= dt;
-    flashOverlay.style.opacity = Math.max(0, Math.min(1, flashT / 2.2));
-  }
-  if (flashT > 0) {
-    flashT -= dt;
-    flashOverlay.style.opacity = Math.max(0, flashT / 0.35);
+    const t = flashMax - flashT;
+    const fadeIn = Math.min(1, t / 0.28);
+    const fadeOut = Math.pow(Math.max(0, 1 - t / flashMax), 1.5);
+    flashOverlay.style.opacity = Math.min(fadeIn, fadeOut);
+    if (flashT <= 0) flashMax = 0;
   }
 }
 
