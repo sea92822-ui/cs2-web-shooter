@@ -1441,16 +1441,28 @@ function addBloodDecal(hitMesh, point, normal, size) {
   decals.push(m);
 }
 
-function addBloodSplatter(hitPoint, dir) {
+function addBloodSplatter(hitPoint, dir, scale = 1) {
   const r = new THREE.Raycaster();
   r.set(hitPoint.clone().addScaledVector(dir, 0.05), new THREE.Vector3(0, -1, 0));
   r.far = 3;
   const fh = r.intersectObjects([floorPlane, ...crateMeshes], false);
-  if (fh.length) addBloodDecal(fh[0].object, fh[0].point, fh[0].face.normal.clone().transformDirection(fh[0].object.matrixWorld), 0.5 + Math.random() * 0.35);
+  if (fh.length) addBloodDecal(fh[0].object, fh[0].point, fh[0].face.normal.clone().transformDirection(fh[0].object.matrixWorld), (0.5 + Math.random() * 0.35) * scale);
   r.set(hitPoint.clone().addScaledVector(dir, 0.05), dir.clone());
   r.far = 6;
   const wh = r.intersectObjects(wallMeshes.concat(crateMeshes), false);
-  if (wh.length) addBloodDecal(wh[0].object, wh[0].point, wh[0].face.normal.clone().transformDirection(wh[0].object.matrixWorld), 0.3 + Math.random() * 0.2);
+  if (wh.length) addBloodDecal(wh[0].object, wh[0].point, wh[0].face.normal.clone().transformDirection(wh[0].object.matrixWorld), (0.3 + Math.random() * 0.2) * scale);
+}
+
+function spawnImpactDecals(point, normal) {
+  const r = new THREE.Raycaster();
+  r.set(point.clone().addScaledVector(normal, 0.35), normal.clone().negate());
+  r.far = 1.2;
+  const hs = r.intersectObjects([...crateMeshes, ...wallMeshes, floorPlane], false);
+  if (!hs.length || !hs[0].face) return;
+  const h = hs[0];
+  const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+  addBulletDecal(h.object, h.point, n);
+  spawnDebris(h.point, n);
 }
 
 function makeDotTexture() {
@@ -2125,21 +2137,56 @@ function shoot() {
   raycaster.set(from, dir);
   raycaster.far = 90;
   const hits = raycaster.intersectObjects(RAY_LIST, false);
-  const point = hits.length ? hits[0].point : from.clone().addScaledVector(dir, 90);
+  const wallDist = hits.length ? hits[0].distance : 90;
+  let playerHit = null;
+  if (net.connected && net.socket) {
+    for (const p of net.other.values()) {
+      const ph = raycaster.intersectObject(p.group, true);
+      if (ph.length && (!playerHit || ph[0].distance < playerHit.distance)) playerHit = ph[0];
+    }
+  }
+  const hitPlayer = playerHit && playerHit.distance < wallDist;
+  const point = hitPlayer ? playerHit.point.clone() : (hits.length ? hits[0].point : from.clone().addScaledVector(dir, 90));
   punchSmokeLine(from, point);
   spawnTracer(from, point);
   if (net.connected && net.socket) {
     const dirv = camera.getWorldDirection(new THREE.Vector3());
-    net.socket.emit('shoot', { x: from.x, y: from.y, z: from.z, dx: dirv.x, dy: dirv.y, dz: dirv.z });
-  }
-  if (hits.length) {
+    let impact = null;
+    if (hitPlayer) {
+      showHitmarker();
+      const ud = playerHit.object.userData;
+      net.socket.emit('player_hit', { targetId: ud.pid, hitPart: ud.hitbox || 'body', hitPoint: playerHit.point, direction: dir.clone() });
+      raycaster.set(playerHit.point.clone().addScaledVector(dir, 0.1), dir);
+      raycaster.far = 90;
+      const bh = raycaster.intersectObjects(RAY_LIST, false);
+      if (bh.length) impact = bh[0];
+    } else if (hits.length) {
+      impact = hits[0];
+      if (impact.object.userData.target) {
+        const t = impact.object;
+        t.material.color.set(0x3dff6e);
+        t.material.emissive.set(0x0a4a1c);
+        t.userData.hitT = 1.6;
+        t.userData.pulse = 1;
+        showHitmarker();
+      }
+    }
+    let impN = null;
+    if (impact && impact.face) impN = impact.face.normal.clone().transformDirection(impact.object.matrixWorld);
+    net.socket.emit('shoot', {
+      x: from.x, y: from.y, z: from.z,
+      dx: dirv.x, dy: dirv.y, dz: dirv.z,
+      ix: impact ? impact.point.x : 0, iy: impact ? impact.point.y : 0, iz: impact ? impact.point.z : 0,
+      nx: impN ? impN.x : 0, ny: impN ? impN.y : 0, nz: impN ? impN.z : 0
+    });
+  } else if (hits.length) {
     const h = hits[0];
     if (h.face) {
       const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
       addBulletDecal(h.object, h.point, n);
       spawnDebris(h.point, n);
     }
-      if (h.object.userData.target) {
+    if (h.object.userData.target) {
       const t = h.object;
       t.material.color.set(0x3dff6e);
       t.material.emissive.set(0x0a4a1c);
@@ -3476,23 +3523,27 @@ function makeRemotePlayer(id) {
   const shirt = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(h % 360 / 360, 0.55, 0.5), roughness: 0.85 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.9 });
   const skin = new THREE.MeshStandardMaterial({ color: 0xcaa284, roughness: 0.8 });
-  const mk = (w, hh, d, mat, y, px = 0) => {
+  const mats = [];
+  const mk = (w, hh, d, mat, y, px = 0, hb = 'body') => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
     m.position.set(px, y, 0);
     m.castShadow = true;
+    m.userData.hitbox = hb;
+    m.userData.pid = id;
+    mats.push(m.material);
     g.add(m);
     return m;
   };
-  mk(0.13, 0.8, 0.16, dark, 0.42, -0.11);
-  mk(0.13, 0.8, 0.16, dark, 0.42, 0.11);
-  mk(0.36, 0.16, 0.22, dark, 0.86);
-  mk(0.44, 0.52, 0.26, shirt, 1.2);
-  mk(0.11, 0.5, 0.13, shirt, 1.34, -0.29);
-  mk(0.11, 0.5, 0.13, shirt, 1.34, 0.29);
-  const head = mk(0.24, 0.26, 0.24, skin, 1.63);
+  mk(0.13, 0.8, 0.16, dark, 0.42, -0.11, 'limb');
+  mk(0.13, 0.8, 0.16, dark, 0.42, 0.11, 'limb');
+  mk(0.36, 0.16, 0.22, dark, 0.86, 0, 'body');
+  mk(0.44, 0.52, 0.26, shirt, 1.2, 0, 'body');
+  mk(0.11, 0.5, 0.13, shirt, 1.34, -0.29, 'limb');
+  mk(0.11, 0.5, 0.13, shirt, 1.34, 0.29, 'limb');
+  const head = mk(0.24, 0.26, 0.24, skin, 1.63, 0, 'head');
   g.position.set(0, 0, 0);
   scene.add(g);
-  return { group: g, head, cur: new THREE.Vector3(0, 0, 0), tgt: new THREE.Vector3(0, 0, 0), yaw: 0, yawT: 0, pitch: 0, pitchT: 0, grounded: true };
+  return { group: g, head, mats, cur: new THREE.Vector3(0, 0, 0), tgt: new THREE.Vector3(0, 0, 0), yaw: 0, yawT: 0, pitch: 0, pitchT: 0, grounded: true, hitT: 0 };
 }
 function removeRemotePlayer(id) {
   const p = net.other.get(id);
@@ -3525,6 +3576,10 @@ function updateRemotePlayers(dt) {
     p.pitch = lerpAngle(p.pitch, p.pitchT, rk);
     p.group.rotation.y = p.yaw;
     p.head.rotation.x = p.pitch;
+    if (p.hitT > 0) {
+      p.hitT -= dt;
+      if (p.hitT <= 0) { for (const m of p.mats) m.emissive.set(0x000000); }
+    }
   }
 }
 function connectNet() {
@@ -3605,6 +3660,25 @@ function connectNet() {
     setTimeout(() => { scene.remove(fl); fl.material.dispose(); }, 60);
   });
   s.on('player-left', (id) => removeRemotePlayer(id));
+  s.on('bullet-impact', (d) => {
+    const n = new THREE.Vector3(d.nx, d.ny, d.nz);
+    if (n.lengthSq() < 0.01) return;
+    spawnImpactDecals(new THREE.Vector3(d.ix, d.iy, d.iz), n);
+  });
+  s.on('player_hit', (d) => {
+    if (d.shooterId === net.id) showHitmarker();
+    const target = net.other.get(d.targetId);
+    if (target) {
+      target.hitT = 0.3;
+      for (const m of target.mats) m.emissive.set(0x8a0505);
+    }
+    const hp = new THREE.Vector3(d.hitPoint.x, d.hitPoint.y, d.hitPoint.z);
+    const dir = new THREE.Vector3(d.direction.x, d.direction.y, d.direction.z).normalize();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    addBloodSplatter(hp, dir, d.hitPart === 'head' ? 1.4 : d.hitPart === 'body' ? 1.1 : 0.85);
+    const wn = new THREE.Vector3(d.nx, d.ny, d.nz);
+    if (wn.lengthSq() >= 0.01) spawnImpactDecals(new THREE.Vector3(d.ix, d.iy, d.iz), wn);
+  });
   s.on('throw_grenade', (d) => {
     if (!grenadeMats[d.type]) return;
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), grenadeMats[d.type]);

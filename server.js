@@ -52,6 +52,29 @@ io.on('connection', (socket) => {
       dy: Number(d.dy) || 0,
       dz: Number(d.dz) || 0
     });
+    io.emit('bullet-impact', {
+      ix: Number(d.ix) || 0,
+      iy: Number(d.iy) || 0,
+      iz: Number(d.iz) || 0,
+      nx: Number(d.nx) || 0,
+      ny: Number(d.ny) || 0,
+      nz: Number(d.nz) || 0
+    });
+  });
+
+  socket.on('player_hit', (d) => {
+    const shooter = players.get(id);
+    const target = players.get(d.targetId);
+    if (!shooter || !target || id === d.targetId) return;
+    const hp = d.hitPoint || {};
+    const dr = d.direction || {};
+    io.emit('player_hit', {
+      shooterId: id,
+      targetId: d.targetId,
+      hitPart: ['head', 'body', 'limb'].includes(d.hitPart) ? d.hitPart : 'body',
+      hitPoint: { x: Number(hp.x) || 0, y: Number(hp.y) || 0, z: Number(hp.z) || 0 },
+      direction: { x: Number(dr.x) || 0, y: Number(dr.y) || 0, z: Number(dr.z) || 0 }
+    });
   });
 
   socket.on('disconnect', () => {
