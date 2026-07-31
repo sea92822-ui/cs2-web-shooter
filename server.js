@@ -13,7 +13,7 @@ const players = new Map();
 
 io.on('connection', (socket) => {
   const id = socket.id;
-  const p = { x: 0, y: 1.7, z: 0, yaw: 0, pitch: 0 };
+  const p = { x: 0, y: 1.7, z: 0, yaw: 0, pitch: 0, grounded: 1 };
   players.set(id, p);
   socket.emit('init', { id, players: [...players.entries()].map(([k, v]) => ({ id: k, ...v })) });
   socket.broadcast.emit('player-join', { id, ...p });
@@ -26,7 +26,20 @@ io.on('connection', (socket) => {
     pl.z = Number(s.z) || 0;
     pl.yaw = Number(s.yaw) || 0;
     pl.pitch = Number(s.pitch) || 0;
-    socket.broadcast.emit('player-move', { id, x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw, pitch: pl.pitch });
+    pl.grounded = s.grounded ? 1 : 0;
+    socket.broadcast.emit('player-move', { id, x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw, pitch: pl.pitch, grounded: pl.grounded });
+  });
+
+  socket.on('throw_grenade', (d) => {
+    socket.broadcast.emit('throw_grenade', {
+      x: Number(d.x) || 0,
+      y: Number(d.y) || 0,
+      z: Number(d.z) || 0,
+      vx: Number(d.vx) || 0,
+      vy: Number(d.vy) || 0,
+      vz: Number(d.vz) || 0,
+      type: d.type
+    });
   });
 
   socket.on('shoot', (d) => {

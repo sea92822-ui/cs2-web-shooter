@@ -2624,7 +2624,11 @@ function throwGrenade(type) {
   g.position.y -= 0.12;
   g.castShadow = true;
   scene.add(g);
-  grenades.push({ mesh: g, vel: dir.clone().multiplyScalar(13).add(new THREE.Vector3(0, 3.2, 0)), type, t: 0, exploded: false, moving: true });
+  const gv = dir.clone().multiplyScalar(13).add(new THREE.Vector3(0, 3.2, 0));
+  grenades.push({ mesh: g, vel: gv, type, t: 0, exploded: false, moving: true });
+  if (net.connected && net.socket) {
+    net.socket.emit('throw_grenade', { x: g.position.x, y: g.position.y, z: g.position.z, vx: gv.x, vy: gv.y, vz: gv.z, type });
+  }
   return true;
 }
 
@@ -3446,7 +3450,7 @@ function frame() {
     if (net.sendT <= 0) {
       net.sendT = 0.05;
       const e = camera.position;
-      net.socket.emit('state', { x: e.x, y: e.y, z: e.z, yaw: yaw, pitch: pitch });
+      net.socket.emit('state', { x: e.x, y: e.y, z: e.z, yaw: yaw, pitch: pitch, grounded: grounded ? 1 : 0 });
     }
   }
   renderer.render(scene, camera);
@@ -3488,7 +3492,7 @@ function makeRemotePlayer(id) {
   const head = mk(0.24, 0.26, 0.24, skin, 1.63);
   g.position.set(0, 0, 0);
   scene.add(g);
-  return { group: g, head, cur: new THREE.Vector3(0, 0, 0), tgt: new THREE.Vector3(0, 0, 0), yaw: 0, yawT: 0, pitch: 0, pitchT: 0 };
+  return { group: g, head, cur: new THREE.Vector3(0, 0, 0), tgt: new THREE.Vector3(0, 0, 0), yaw: 0, yawT: 0, pitch: 0, pitchT: 0, grounded: true };
 }
 function removeRemotePlayer(id) {
   const p = net.other.get(id);
@@ -3508,7 +3512,15 @@ function updateRemotePlayers(dt) {
   const rk = 1 - Math.pow(0.001, dt);
   for (const p of net.other.values()) {
     p.cur.lerp(p.tgt, k);
-    p.group.position.copy(p.cur);
+    let gy = p.cur.y - EYE;
+    if (p.grounded) {
+      raycaster.set(new THREE.Vector3(p.cur.x, 3.2, p.cur.z), new THREE.Vector3(0, -1, 0));
+      raycaster.far = 8;
+      const hits = raycaster.intersectObjects(RAY_LIST, false);
+      raycaster.far = Infinity;
+      if (hits.length) gy = Math.max(gy, hits[0].point.y);
+    }
+    p.group.position.set(p.cur.x, gy, p.cur.z);
     p.yaw = lerpAngle(p.yaw, p.yawT, rk);
     p.pitch = lerpAngle(p.pitch, p.pitchT, rk);
     p.group.rotation.y = p.yaw;
@@ -3551,6 +3563,7 @@ function connectNet() {
         p.tgt.set(pl.x, pl.y, pl.z);
         p.yaw = p.yawT = pl.yaw;
         p.pitch = p.pitchT = pl.pitch;
+        p.grounded = pl.grounded !== 0;
         net.other.set(pl.id, p);
       }
     }
@@ -3562,6 +3575,7 @@ function connectNet() {
     p.tgt.set(pl.x, pl.y, pl.z);
     p.yaw = p.yawT = pl.yaw;
     p.pitch = p.pitchT = pl.pitch;
+    p.grounded = pl.grounded !== 0;
     net.other.set(pl.id, p);
   });
   s.on('player-move', (d) => {
@@ -3570,6 +3584,7 @@ function connectNet() {
     p.tgt.set(d.x, d.y, d.z);
     p.yawT = d.yaw;
     p.pitchT = d.pitch;
+    p.grounded = d.grounded !== 0;
   });
   s.on('player-shoot', (d) => {
     const p = net.other.get(d.id);
@@ -3590,6 +3605,14 @@ function connectNet() {
     setTimeout(() => { scene.remove(fl); fl.material.dispose(); }, 60);
   });
   s.on('player-left', (id) => removeRemotePlayer(id));
+  s.on('throw_grenade', (d) => {
+    if (!grenadeMats[d.type]) return;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), grenadeMats[d.type]);
+    m.position.set(Number(d.x) || 0, Number(d.y) || 0, Number(d.z) || 0);
+    m.castShadow = true;
+    scene.add(m);
+    grenades.push({ mesh: m, vel: new THREE.Vector3(Number(d.vx) || 0, Number(d.vy) || 0, Number(d.vz) || 0), type: d.type, t: 0, exploded: false, moving: true });
+  });
 }
 connectNet();
 
