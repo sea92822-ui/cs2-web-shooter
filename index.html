@@ -584,6 +584,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const lerp = THREE.MathUtils.lerp;
@@ -1406,6 +1407,38 @@ awpFlash.position.set(0, 0.04, -0.66);
 awpFlash.scale.set(0.5, 0.5, 1);
 awpFlash.visible = false;
 awp.add(awpFlash);
+
+(function loadAWPModel() {
+  const applyModel = (root, silent) => {
+    try {
+      root.scale.setScalar(0.02);
+      root.rotation.y = Math.PI;
+      const box = new THREE.Box3().setFromObject(root);
+      if (box.isEmpty()) throw new Error('empty model');
+      root.traverse(o => {
+        if (o.isMesh) {
+          o.material = awpDarkMat;
+          o.castShadow = false;
+          o.receiveShadow = false;
+        }
+      });
+      while (awp.children.length) awp.remove(awp.children[0]);
+      awp.add(root);
+      awpMuzzle.position.set(0, (box.min.y + box.max.y) / 2, box.min.z);
+      awpFlash.position.copy(awpMuzzle.position);
+      console.log('AWP model loaded from OBJ');
+    } catch (e) {
+      console.warn('AWP model apply failed, keeping primitives', e);
+    }
+  };
+  const loader = new OBJLoader();
+  loader.load('models/weapon_snip_awp.obj',
+    root => applyModel(root, false),
+    undefined,
+    () => {
+      loader.load('models/awp_detailed.obj', root => applyModel(root, true), undefined, () => console.warn('AWP OBJ models unavailable, using primitive model'));
+    });
+})();
 
 const grenadeSmokeMat = new THREE.MeshStandardMaterial({ color: 0x4a5d3a, roughness: 0.6 });
 const grenadeHeMat = new THREE.MeshStandardMaterial({ color: 0x4d4a35, roughness: 0.6 });

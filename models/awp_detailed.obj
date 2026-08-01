@@ -1,0 +1,199 @@
+# AWP Sniper Rifle (Detailed CS2 Style)
+# Created for CS2 Web Shooter
+# Includes scope/scope reticle system
+
+mtllib awp.mtl
+g AWP_Rifle
+
+# Main rifle body
+v -0.8 -0.8 0.0
+v -0.8 0.8 0.0
+v 0.8 0.8 0.0
+v 0.8 -0.8 0.0
+v -0.8 -0.8 40.0
+v -0.8 0.8 40.0
+v 0.8 0.8 40.0
+v 0.8 -0.8 40.0
+
+# Scope tube
+v -0.4 1.2 20.0
+v -0.4 1.8 20.0
+v 0.4 1.8 20.0
+v 0.4 1.2 20.0
+v -0.4 1.2 25.0
+v -0.4 1.8 25.0
+v 0.4 1.8 25.0
+v 0.4 1.2 25.0
+
+# Scope lenses
+v -0.35 1.25 20.1
+v -0.35 1.75 20.1
+v 0.35 1.75 20.1
+v 0.35 1.25 20.1
+v -0.35 1.25 24.9
+v -0.35 1.75 24.9
+v 0.35 1.75 24.9
+v 0.35 1.25 24.9
+
+# Scope adjustment knobs
+v -0.6 1.4 22.0
+v -0.6 1.6 22.0
+v -0.4 1.6 22.0
+v -0.4 1.4 22.0
+v -0.6 1.4 22.5
+v -0.6 1.6 22.5
+v -0.4 1.6 22.5
+v -0.4 1.4 22.5
+
+v 0.4 1.4 22.0
+v 0.4 1.6 22.0
+v 0.6 1.6 22.0
+v 0.6 1.4 22.0
+v 0.4 1.4 22.5
+v 0.4 1.6 22.5
+v 0.6 1.6 22.5
+v 0.6 1.4 22.5
+
+# Magazine
+v -0.6 -1.0 10.0
+v -0.6 -0.4 10.0
+v 0.6 -0.4 10.0
+v 0.6 -1.0 10.0
+v -0.6 -1.0 15.0
+v -0.6 -0.4 15.0
+v 0.6 -0.4 15.0
+v 0.6 -1.0 15.0
+
+# Bolt handle
+v 0.8 0.6 5.0
+v 0.8 1.0 5.0
+v 1.2 1.0 5.0
+v 1.2 0.6 5.0
+v 0.8 0.6 6.0
+v 0.8 1.0 6.0
+v 1.2 1.0 6.0
+v 1.2 0.6 6.0
+
+# Stock
+v -0.8 -0.8 35.0
+v -0.8 0.8 35.0
+v 0.8 0.8 35.0
+v 0.8 -0.8 35.0
+v -0.8 -0.8 45.0
+v -0.8 0.8 45.0
+v 0.8 0.8 45.0
+v 0.8 -0.8 45.0
+
+# Barrel
+v -0.4 -0.4 -5.0
+v -0.4 0.4 -5.0
+v 0.4 0.4 -5.0
+v 0.4 -0.4 -5.0
+v -0.4 -0.4 0.0
+v -0.4 0.4 0.0
+v 0.4 0.4 0.0
+v 0.4 -0.4 0.0
+
+# Suppressor/Flash hider
+v -0.3 -0.3 -10.0
+v -0.3 0.3 -10.0
+v 0.3 0.3 -10.0
+v 0.3 -0.3 -10.0
+v -0.3 -0.3 -5.0
+v -0.3 0.3 -5.0
+v 0.3 0.3 -5.0
+v 0.3 -0.3 -5.0
+
+# Texture coordinates
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+vt 0.0 1.0
+vt 0.2 0.0
+vt 0.8 0.0
+vt 0.8 1.0
+vt 0.2 1.0
+vt 0.0 0.2
+vt 1.0 0.2
+vt 1.0 0.8
+vt 0.0 0.8
+
+# Normals
+vn 0.0 0.0 1.0
+vn 0.0 0.0 -1.0
+vn 0.0 1.0 0.0
+vn 0.0 -1.0 0.0
+vn 1.0 0.0 0.0
+vn -1.0 0.0 0.0
+
+# Groups and faces
+g Rifle_Body
+usemtl rifle_black
+# Front face
+f 1/1/1 2/2/1 3/3/1 4/4/1
+# Back face
+f 8/1/2 7/2/2 6/3/2 5/4/2
+# Top face
+f 2/1/3 6/2/3 7/3/3 3/4/3
+# Bottom face
+f 4/1/4 8/2/4 5/3/4 1/4/4
+# Right face
+f 4/1/5 3/2/5 7/3/5 8/4/5
+# Left face
+f 1/1/6 5/2/6 6/3/6 2/4/6
+
+g Scope_Tube
+usemtl scope_metal
+# Scope tube faces (similar cube)
+f 9/5/1 10/6/1 11/7/1 12/8/1
+f 16/5/2 15/6/2 14/7/2 13/8/2
+f 10/5/3 14/6/3 15/7/3 11/8/3
+f 12/5/4 16/6/4 13/7/4 9/8/4
+f 12/5/5 11/6/5 15/7/5 16/8/5
+f 9/5/6 13/6/6 14/7/6 10/8/6
+
+g Scope_Lenses
+usemtl scope_glass
+# Front lens
+f 17/9/1 18/10/1 19/11/1 20/12/1
+# Rear lens
+f 24/9/2 23/10/2 22/11/2 21/12/2
+
+g Adjustment_Knobs
+usemtl knob_black
+# Left knob
+f 25/1/1 26/2/1 27/3/1 28/4/1
+f 32/1/2 31/2/2 30/3/2 29/4/2
+# Right knob
+f 33/1/1 34/2/1 35/3/1 36/4/1
+f 40/1/2 39/2/2 38/3/2 37/4/2
+
+g Magazine
+usemtl magazine_black
+f 41/1/1 42/2/1 43/3/1 44/4/1
+f 48/1/2 47/2/2 46/3/2 45/4/2
+
+g Bolt_Handle
+usemtl bolt_metal
+f 49/1/1 50/2/1 51/3/1 52/4/1
+f 56/1/2 55/2/2 54/3/2 53/4/2
+
+g Stock
+usemtl stock_wood
+f 57/1/1 58/2/1 59/3/1 60/4/1
+f 64/1/2 63/2/2 62/3/2 61/4/2
+
+g Barrel
+usemtl barrel_metal
+f 65/1/1 66/2/1 67/3/1 68/4/1
+f 72/1/2 71/2/2 70/3/2 69/4/2
+
+g Suppressor
+usemtl suppressor_metal
+f 73/1/1 74/2/1 75/3/1 76/4/1
+f 80/1/2 79/2/2 78/3/2 77/4/2
+
+# Reticle data (not geometry, for scope overlay)
+# Scope zoom: 8x
+# Reticle type: T-shaped with mil-dots
+# Zeroing distance: 100m

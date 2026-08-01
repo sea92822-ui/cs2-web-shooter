@@ -1,0 +1,74 @@
+# AWP Material Library
+# CS2 Style Materials
+
+newmtl rifle_black
+Ka 0.1 0.1 0.1
+Kd 0.15 0.15 0.15
+Ks 0.2 0.2 0.2
+Ns 50
+d 1.0
+illum 2
+
+newmtl scope_metal
+Ka 0.2 0.2 0.2
+Kd 0.3 0.3 0.3
+Ks 0.5 0.5 0.5
+Ns 100
+d 1.0
+illum 2
+
+newmtl scope_glass
+Ka 0.0 0.0 0.0
+Kd 0.1 0.1 0.1
+Ks 0.8 0.8 0.8
+Ns 200
+d 0.3
+illum 3
+
+newmtl knob_black
+Ka 0.05 0.05 0.05
+Kd 0.1 0.1 0.1
+Ks 0.1 0.1 0.1
+Ns 30
+d 1.0
+illum 1
+
+newmtl magazine_black
+Ka 0.08 0.08 0.08
+Kd 0.12 0.12 0.12
+Ks 0.15 0.15 0.15
+Ns 40
+d 1.0
+illum 1
+
+newmtl bolt_metal
+Ka 0.3 0.3 0.3
+Kd 0.5 0.5 0.5
+Ks 0.7 0.7 0.7
+Ns 150
+d 1.0
+illum 2
+
+newmtl stock_wood
+Ka 0.4 0.3 0.2
+Kd 0.6 0.45 0.3
+Ks 0.2 0.15 0.1
+Ns 30
+d 1.0
+illum 1
+
+newmtl barrel_metal
+Ka 0.25 0.25 0.25
+Kd 0.4 0.4 0.4
+Ks 0.6 0.6 0.6
+Ns 120
+d 1.0
+illum 2
+
+newmtl suppressor_metal
+Ka 0.35 0.35 0.35
+Kd 0.55 0.55 0.55
+Ks 0.8 0.8 0.8
+Ns 180
+d 1.0
+illum 2
