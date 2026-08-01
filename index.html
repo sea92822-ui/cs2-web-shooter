@@ -1917,6 +1917,7 @@ function startStab() {
 function switchWeapon(w) {
   if (w === currentWeapon || switchAnim || isInspecting) return;
   if (scoped) setScoped(false);
+  if (w === 'awp') playAWPBuffer('draw', 0.6);
   if (w === 'grenade') prevWeapon = currentWeapon;
   anim = { type: 'idle', t: 0, dur: 0 };
   switchAnim = { out: currentWeapon, in: w, t: 0 };
@@ -2060,6 +2061,34 @@ function loadShotSound() {
   shotAudioEl.addEventListener('error', () => { shotAudioEl = null; });
 }
 loadShotSound();
+
+const awpSoundBufs = {};
+function loadAWPSound(name, url) {
+  fetch(url)
+    .then(r => { if (!r.ok) throw new Error('no ' + url); return r.arrayBuffer(); })
+    .then(buf => { const ac = initAudio(); return ac ? ac.decodeAudioData(buf) : Promise.reject(); })
+    .then(decoded => { awpSoundBufs[name] = decoded; })
+    .catch(() => {});
+}
+loadAWPSound('boltforward', 'awp_boltforward.mp3');
+loadAWPSound('bolt', 'awp_bolt.mp3');
+loadAWPSound('draw', 'awp_draw.mp3');
+
+function playAWPBuffer(name, vol) {
+  if (!soundOn) return;
+  const ac = initAudio();
+  if (!ac) return;
+  const buf = awpSoundBufs[name];
+  if (!buf) return;
+  const t = ac.currentTime;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = v(vol || 0.5);
+  g.connect(ac.destination);
+  src.connect(g);
+  src.start(t);
+}
 
 function noiseBuffer(ac, dur) {
   const b = ac.createBuffer(1, Math.max(1, Math.floor(ac.sampleRate * dur)), ac.sampleRate);
@@ -2362,6 +2391,8 @@ function shoot() {
     recoilPitch += scoped ? 0.028 : 0.05;
     recoilYaw += (Math.random() - 0.5) * 0.006;
     boltT = 1.35;
+    setTimeout(() => { if (currentWeapon === 'awp') playAWPBuffer('boltforward', 0.55); }, 180);
+    setTimeout(() => { if (currentWeapon === 'awp') playAWPBuffer('bolt', 0.55); }, 780);
   } else {
     recoilPitch += 0.02;
     recoilYaw += (Math.random() - 0.5) * 0.004;
@@ -2389,7 +2420,7 @@ function shoot() {
   let spread = isAK ? 0.0008 : isAWP ? (scoped ? 0.0004 : 0.022) : 0.002;
   spread += moveFactor * (isAK ? 0.005 : isAWP ? 0.012 : 0.004);
   spread += R.idx * (isAK ? 0.0003 : isAWP ? 0.0001 : 0.0002);
-  if (!grounded) spread += isAWP ? 0.02 : 0.015;
+  if (!grounded) spread += isAWP ? 0.12 : 0.015;
   dir.x += (Math.random() - 0.5) * spread;
   dir.y += (Math.random() - 0.5) * spread;
   dir.normalize();
