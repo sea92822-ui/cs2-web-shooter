@@ -1417,18 +1417,22 @@ awp.add(awpFlash);
       if (box.isEmpty()) throw new Error('empty model');
       root.traverse(o => {
         if (o.isMesh) {
-          o.material = awpDarkMat;
+          o.material = awpMetalMat;
           o.castShadow = false;
           o.receiveShadow = false;
         }
       });
-      while (awp.children.length) awp.remove(awp.children[0]);
+      const keep = new Set([awpMuzzle, awpFlash]);
+      for (const ch of [...awp.children]) {
+        if (!keep.has(ch)) awp.remove(ch);
+      }
       awp.add(root);
       awpMuzzle.position.set(0, (box.min.y + box.max.y) / 2, box.min.z);
       awpFlash.position.copy(awpMuzzle.position);
       console.log('AWP model loaded from OBJ');
     } catch (e) {
       console.warn('AWP model apply failed, keeping primitives', e);
+      if (!silent) toast('Модель AWP не загрузилась');
     }
   };
   const loader = new OBJLoader();
@@ -1436,7 +1440,7 @@ awp.add(awpFlash);
     root => applyModel(root, false),
     undefined,
     () => {
-      loader.load('models/awp_detailed.obj', root => applyModel(root, true), undefined, () => console.warn('AWP OBJ models unavailable, using primitive model'));
+      loader.load('models/awp_detailed.obj', root => applyModel(root, true), undefined, () => { console.warn('AWP OBJ models unavailable, using primitive model'); toast('Модель AWP не загрузилась'); });
     });
 })();
 

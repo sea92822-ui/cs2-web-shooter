@@ -4,6 +4,12 @@ const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, '.')));
 
 const server = http.createServer(app);
